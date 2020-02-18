@@ -1,0 +1,237 @@
+<!--
+  Copyright 2017 Google Inc. All Rights Reserved.
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>
+      Example: Head tracking via Gamepad
+    </title>
+    <script src="../build/omnitone.min.js"></script>
+    <link rel="stylesheet" href="example.css">
+  </head>
+  <body>
+    <h1>
+      Example: Head tracking via Gamepad
+    </h1>
+    <p>
+      Connect a game pad to control the rotation of sound field.
+    </p>
+    <p>
+      More info on GamepadAPI can be found at <a href=
+      "https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API/Using_the_Gamepad_API"
+      target="_blank">MDN</a> or <a href=
+      "https://www.html5rocks.com/en/tutorials/doodles/gamepad/">HTML5Rocks</a>.
+    </p>
+    <div id="secSource">
+      <p>
+        NOTE: Use headphones for the full-sphere surround sound.
+      </p><button id="eButtonPlayback" disabled>Play</button>
+      <h2>
+        Select the sound source to play.
+      </h2><select id="eSelectSource" name="dropdownSource" disabled>
+        <option value="speech" selected="selected">
+          Speech
+        </option>
+        <option value="warbird">
+          Airplanes
+        </option>
+      </select>
+    </div>
+    <div id="secRotation">
+      <h2>
+        Use game pad or select a direction to rotate.
+      </h2>
+      <p>
+        Select a direction to simulate the rotation.
+      </p><select id="eSelectDirection" name="dropdownDirection" disabled
+      style="width: 260px;">
+        <option value="front" selected>
+          Front
+        </option>
+        <option value="rear">
+          Rear
+        </option>
+        <option value="left">
+          Left
+        </option>
+        <option value="right">
+          Right
+        </option>
+        <option value="up">
+          Up
+        </option>
+        <option value="down">
+          Down
+        </option>
+        <option value="rightShoulder">
+          Head on right shoulder
+        </option>
+        <option value="leftShoulder">
+          Head on left shoulder
+        </option>
+      </select>
+      <div id="eDivDirection"></div>
+    </div>
+    <script>
+    var foaRenderer;
+    var audioSources = {
+      'speech': 'resources/4ch_B_FuMaNorm_FuMaOrd_speech.wav',
+      'warbird': 'resources/jlwarbirds3.amb'
+    };
+
+    // TODO(hongchan): Safari supports the API only above 10.1.
+    if (!navigator.getGamepads) {
+      navigator.getGamepads = function () { return []; };
+    }
+
+    var gamePadFound = false;
+    var previousAxes = new Float32Array(3);
+    var predefinedDirections = {
+      front: [0, 0, 0],
+      rear: [Math.PI, 0, 0],
+      left: [-Math.PI/2, 0, 0],
+      right: [Math.PI/2, 0, 0],
+      up: [0, Math.PI/2, 0],
+      down: [0, -Math.PI/2, 0],
+      rightShoulder: [0, 0, Math.PI/2],
+      leftShoulder: [0, 0, -Math.PI/2]
+    };
+
+    // DOM element handles.
+    var buttonPlayback, selectSource, selectDirection, divDirection;
+
+
+    /**
+     * Sets the decoder's rotation matrix and calculates the angles. Note that
+     * Omnitone decoder uses a different convention (theta = yaw,
+     * psi = pitch, phi = roll).
+     * See: http://mathworld.wolfram.com/EulerAngles.html
+     *
+     * @param  {Number} theta Pitch.
+     * @param  {Number} psi Roll.
+     * @param  {Number} phi Yaw.
+     */
+    var updateDirection = function (theta, psi, phi) {
+      console.log(theta, psi, phi);
+      var cosTheta = Math.cos(theta);
+      var cosPhi = Math.cos(phi);
+      var sinPhi = Math.sin(phi);
+      var sinTheta = Math.sin(theta);
+      var sinPsi = Math.sin(psi);
+      var cosPsi = Math.cos(psi);
+
+      foaRenderer.setRotationMatrix3([
+        cosTheta * cosPhi,
+        cosTheta * sinPhi,
+        -sinTheta,
+        sinPsi * sinTheta * cosPhi - cosPsi * sinPhi,
+        sinPsi * sinTheta * sinPhi + cosPsi * cosPhi,
+        cosTheta * sinPsi,
+        cosPsi * sinTheta * cosPhi + sinPsi * sinPhi,
+        cosPsi * sinTheta * sinPhi - sinPsi * cosPhi,
+        cosTheta * cosPsi
+      ]);
+
+      divDirection.innerHTML =
+          'YAW = ' + Math.round(theta * 180 / Math.PI).toFixed(2) +
+          ' / PITCH = ' + Math.round(psi * 180 / Math.PI).toFixed(2) +
+          ' / ROLL = ' + Math.round(phi * 180 / Math.PI).toFixed(2);
+    };
+
+
+    /**
+     * Poll Gamepads and retrieve the movement to update the direction. Driven
+     * by requestAnmiationFrame().
+     */
+    var pollGamePad = function () {
+      var gamepads = navigator.getGamepads();
+      for (var i = 0; i < gamepads.length; ++i) {
+        var pad = gamepads[i];
+        if (pad) {
+          if (previousAxes[0] !== pad.axes[0] ||
+              previousAxes[1] !== pad.axes[1] ||
+              previousAxes[2] !== pad.axes[2]) {
+            previousAxes[0] = pad.axes[0];
+            previousAxes[1] = pad.axes[1];
+            previousAxes[2] = pad.axes[2];
+            updateDirection(axes[0] * Math.PI,
+                            axes[1] * Math.PI,
+                            axes[2] * Math.PI);
+          }
+        }
+      }
+      requestAnimationFrame(pollGamePad);
+    };
+
+
+    /**
+     * handles |onload| event.
+     */
+    var onLoad = function () {
+      var audioContext = new AudioContext();
+      var audioElement = document.createElement('audio');
+      audioElement.loop = true;
+      audioElement.crossOrigin = 'anonymous';
+      audioElement.src = audioSources['speech'];
+
+      foaRenderer = Omnitone.createFOARenderer(audioContext, {
+        // The example audio is in the FuMa ordering (W,X,Y,Z). So remap the
+        // channels to the ACN format.
+        channelMap: [0, 3, 1, 2]
+      });
+
+      buttonPlayback = document.getElementById('eButtonPlayback');
+      selectSource = document.getElementById('eSelectSource');
+      selectDirection = document.getElementById('eSelectDirection');
+      divDirection = document.getElementById('eDivDirection');
+
+      buttonPlayback.onclick = function (event) {
+        if (event.target.textContent === 'Play') {
+          event.target.textContent = 'Pause';
+          audioElement.play();
+        } else {
+          event.target.textContent = 'Play';
+          audioElement.pause();
+        }
+      };
+
+      selectSource.onchange = function (event) {
+        audioElement.src = audioSources[event.target.value];
+        audioElement.load();
+        if (buttonPlayback.textContent === 'Pause')
+          audioElement.play();
+      };
+
+      selectDirection.onchange = function (event) {
+        var direction = predefinedDirections[event.target.value];
+        updateDirection(direction[0], direction[1], direction[2]);
+      };
+
+      foaRenderer.initialize().then(function () {
+        buttonPlayback.disabled = false;
+        selectSource.disabled = false;
+        selectDirection.disabled = false;
+        requestAnimationFrame(pollGamePad);
+      }, function (onInitializationError) {
+        console.error(onInitializationError);
+      });
+    };
+
+
+    window.addEventListener('load', onLoad);
+    </script>
+  </body>
+</html>

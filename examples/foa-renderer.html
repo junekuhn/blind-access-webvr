@@ -1,0 +1,130 @@
+<!--
+  Copyright 2017 Google Inc. All Rights Reserved.
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>
+      Example: FOARenderer (Optimized)
+    </title>
+    <script src="../build/omnitone.min.js"></script>
+    <link rel="stylesheet" href="example.css">
+  </head>
+  <body>
+    <h1>
+      Example: FOARenderer (Optimized)
+    </h1>
+    <p>
+      <code>FOARenderer</code> is an optimized ambisonic renderer based on the
+      integrated convolution (SH-MaxRe HRIR).
+    </p>
+    <p>
+      See <a href="https://github.com/GoogleChrome/omnitone#foarenderer">more
+      info</a> on <code>FOARenderer</code>.
+    </p>
+    <div id="secSource">
+      <p>
+        NOTE: Use headphones for the full-sphere surround sound.
+      </p><select id="eSelectSource" name="dropdownSource" disabled>
+        <option value="speech" selected="selected">
+          Speech
+        </option>
+        <option value="warbird">
+          Airplanes
+        </option>
+      </select> <button id="eButtonPlayback" disabled>Play</button>
+    </div>
+    <div id="secRenderingMode">
+      <span class="label">Rendering mode</span> <button id="eButtonBypass"
+      disabled>Ambisonic</button>
+    </div>
+    <div id="footer">
+      <p>
+        Found something broken? <a href=
+        "https://github.com/GoogleChrome/omnitone/issues">File an issue.</a>
+      </p>
+    </div>
+    <script>
+    var foaRenderer;
+    var audioSources = {
+      'speech': 'resources/4ch_B_FuMaNorm_FuMaOrd_speech.wav',
+      'warbird': 'resources/jlwarbirds3.amb'
+    };
+
+    var buttonPlayback, selectSource, buttonBypass;
+
+    var onLoad = function () {
+      var audioContext = new AudioContext();
+      var audioElement = document.createElement('audio');
+      var audioElementSource =
+          audioContext.createMediaElementSource(audioElement);
+      audioElement.loop = true;
+      audioElement.crossOrigin = 'anonymous';
+      audioElement.src = audioSources['speech'];
+
+      foaRenderer = Omnitone.createFOARenderer(audioContext, {
+        // The example audio is in the FuMa ordering (W,X,Y,Z). So remap the
+        // channels to the ACN format.
+        channelMap: [0, 3, 1, 2]
+      });
+
+      selectSource = document.getElementById('eSelectSource');
+      buttonPlayback = document.getElementById('eButtonPlayback');
+      buttonBypass = document.getElementById('eButtonBypass');
+
+      selectSource.onchange = function (event) {
+        audioElement.src = audioSources[event.target.value];
+        audioElement.load();
+        if (buttonPlayback.textContent === 'Pause')
+          audioElement.play();
+      };
+
+      buttonPlayback.onclick = function (event) {
+        if (event.target.textContent === 'Play') {
+          event.target.textContent = 'Pause';
+          audioContext.resume();
+          audioElement.play();
+        } else {
+          event.target.textContent = 'Play';
+          audioElement.pause();
+          audioContext.suspend();
+        }
+      };
+
+      buttonBypass.onclick = function (event) {
+        if (event.target.textContent === 'Ambisonic') {
+          event.target.textContent = 'Bypass';
+          foaRenderer.setRenderingMode('bypass');
+        } else {
+          event.target.textContent = 'Ambisonic';
+          foaRenderer.setRenderingMode('ambisonic');
+        }
+      };
+
+      foaRenderer.initialize().then(function () {
+        selectSource.disabled = false;
+        buttonPlayback.disabled = false;
+        buttonBypass.disabled = false;
+        audioElementSource.connect(foaRenderer.input);
+        foaRenderer.output.connect(audioContext.destination);
+      }, function (onInitializationError) {
+        console.error(onInitializationError);
+      });
+    };
+
+    window.addEventListener('load', onLoad);
+    </script>
+  </body>
+</html>
