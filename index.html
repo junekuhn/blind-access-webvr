@@ -1,24 +1,180 @@
-<!DOCTYPE html>
-<html lang="en">
+<!-- attachsomething better to gui -->
+<!-- coordinates/cardinal directions -->
+<!-- chrome support -->
+<!-- mobile support -->
+<!-- switch case for if you have certain technology, the thingy and/or gamepad -->
+<!--  a,b,x,y or l,r triggers samples-->
+<!-- this might be the next step  after for making it a musical instrument https://github.com/resonance-audio/resonance-audio-web-sdk/blob/master/examples/resources/js/treasure-hunt.js -->
 
-<head>
-	<meta charset="utf-8">
-	<title>Blind Accessible WebVR</title>
-	<meta name="author" content="Your Name">
-	<meta name="description" content="Example description">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="">
-	<link rel="icon" type="image/x-icon" href=""/>
-</head>
+<!-- THINGY ONLY WORKS IN CHROME -->
 
-<body>
-	<header></header>
-	<main>
-        <a href="examples/hoa-renderer.html"
-           style="align: center; font: 50px; color: black">Test HOA</a>
-    </main>
-	<footer></footer>
-	<script type="text/javascript" src=""></script>
-</body>
+<html>
+  <head>
+    <title>Audio-Only WebVR</title>
 
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+    <script src="js/GamePad.js"></script>
+    <script src="js/head-tracker.js" type="module"></script>
+  </head>
+  <body> 
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdn.glitch.com/9493069f-45cb-4415-bb88-0a7d80aebe48%2Fthree.js?1532000822202"></script>
+    <script src="https://cdn.glitch.com/9493069f-45cb-4415-bb88-0a7d80aebe48%2FOrbitControls.js?1532000821173"></script>
+    <script src="https://cdn.glitch.com/a09bdf89-49d8-4f65-8171-b36bffc3f4fb%2FGLTFLoader.js?1535053544819"></script>
+    <script src="https://cdn.glitch.com/9493069f-45cb-4415-bb88-0a7d80aebe48%2Fdat.gui.min.js?1532000820951"></script>
+    <script src="https://www.gstatic.com/external_hosted/omnitone/build/omnitone.min.js"></script>
+    <script src="https://cdn.glitch.com/9493069f-45cb-4415-bb88-0a7d80aebe48%2FDetector.js?1532000821054"></script>
+    <script src="https://cdn.glitch.com/9493069f-45cb-4415-bb88-0a7d80aebe48%2Fstats.min.js?1532000821321"></script>
+    <div id="coverpage">
+      <div id="button-container" class="centered">
+        
+      </div>
+    </div>
+    <div id="webGL-container"></div>
+
+    <div id="container"></div>
+    <div id="info">
+      <br />camera orbit/zoom/pan with left/middle/right mouse button
+    </div>
+
+    <script>
+      /*global variables*/
+      var scene, camera, renderer;
+      var controls, guiControls, datGUI;
+      var mixer;
+      var stats;
+      var hemi;
+      var SCREEN_WIDTH, SCREEN_HEIGHT;
+      var loader, model, animation;
+      var singleStepMode = false;
+      var clock = new THREE.Clock();
+
+      /////////////AUDIO///////////////////////////
+
+      // Set up an audio element to feed the ambisonic source audio feed.
+      const audioElement = document.createElement("audio");
+
+      //it's crossOrigin for Firefox.
+      audioElement.crossOrigin = "anonymous";
+
+      audioElement.src =
+        "https://cdn.glitch.com/2e913889-a8ec-4405-b146-ddeb55a39751%2FAnderson-Steam.wav?v=1588860797334";
+
+      // Create AudioContext, MediaElementSourceNode and FOARenderer.
+      const audioContext = new AudioContext();
+      const audioElementSource = audioContext.createMediaElementSource(
+        audioElement
+      );
+      const foaRenderer = Omnitone.createFOARenderer(audioContext);
+
+      // Make connection and start play. Hook up the user input for the playback.
+      foaRenderer.initialize().then(function() {
+        audioElementSource.connect(foaRenderer.input);
+        foaRenderer.output.connect(audioContext.destination);
+
+        // This is necessary to activate audio playback out of autoplay block.
+        window.onclick = () => {
+          audioContext.resume();
+          audioElement.play();
+        };
+      });
+
+      /////////end of audio//////////////////////
+
+      /////////gamepad controller////////
+      // Create controllr with Gamepad API
+      let controller = new GamePad();
+      console.log(controller);
+
+      /////////////////////////////////////
+
+      init();
+      animate();
+
+      function init() {
+        /*creates empty scene object and renderer*/
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          45,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          500
+        );
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+
+        //Sets the clear color and opacity.
+        renderer.setClearColor(0x111);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.position.x = 0;
+        camera.position.y = 0.3;
+        camera.position.z = 0.3;
+ 
+        /*add controls*/
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.autoRotate = true;
+        controls.enablePan = false;
+
+        // This light cannot be used to cast shadows.
+        hemi = new THREE.HemisphereLight(0xbbbbbb, 0x43464b);
+        scene.add(hemi);
+
+        function loadScene() {
+          // Instantiate a loader
+          var loader = new THREE.GLTFLoader();
+
+          // Load a glTF resource
+          loader.load(
+            "https://cdn.glitch.com/b3beec04-13a6-4a1a-adcf-ba688d26bb59%2Fmodel%20(1).glb?1557955817717",
+            function(gltf) {
+              var model = gltf.scene;
+              //scale the model
+              model.scale.set(0.03, 0.03, 0.03);
+              scene.add(model);
+            }
+          );
+        }
+
+        loadScene();
+
+        $("#webGL-container").append(renderer.domElement); 
+        /*stats*/
+        stats = new Stats();
+        stats.domElement.style.position = "absolute";
+        stats.domElement.style.left = "0px";
+        stats.domElement.style.top = "0px"; 
+        $("#webGL-container").append(stats.domElement);
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        //render();
+        console.log(controller.pan.x)
+     
+         controls.autoRotateSpeed = controller.pan.x *50;
+        //controls.rotation.y += controller.pan.x * 0.1;
+        
+        
+        stats.update();
+     
+        foaRenderer.setRotationMatrix4(camera.matrixWorld.elements);
+        controller.update();
+        controls.update();
+        renderer.render(scene, camera);
+
+      }
+
+      $(window).resize(function() {
+        SCREEN_WIDTH = window.innerWidth;
+        SCREEN_HEIGHT = window.innerHeight;
+        camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+        camera.updateProjectionMatrix();
+        renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+      });
+
+     
+    </script>
+  </body>
 </html>
+
+
+<!-- in case i lose ithttps://codepen.io/XanderLuciano/pen/vddOOG -->
